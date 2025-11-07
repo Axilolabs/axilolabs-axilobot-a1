@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,29 +16,32 @@ export async function POST(request: NextRequest) {
 
     if (!message || !chatbotId) {
       return NextResponse.json(
-        { error: "Message and chatbotId are required" },
+        { error: 'Message and chatbotId are required' },
         { status: 400 }
       );
     }
 
     const { data: chatbot, error: chatbotError } = await supabase
-      .from("chatbots")
-      .select("*")
-      .eq("id", chatbotId)
+      .from('chatbots')
+      .select('*')
+      .eq('id', chatbotId)
       .single();
 
     if (chatbotError || !chatbot) {
-      return NextResponse.json({ error: "Chatbot not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Chatbot not found' },
+        { status: 404 }
+      );
     }
 
     let currentConversationId = conversationId;
-
+    
     if (!currentConversationId) {
       const { data: newConversation, error: convError } = await supabase
-        .from("conversations")
+        .from('conversations')
         .insert({
           chatbot_id: chatbotId,
-          visitor_id: visitorId || "anonymous",
+          visitor_id: visitorId || 'anonymous',
         })
         .select()
         .single();
@@ -47,31 +50,30 @@ export async function POST(request: NextRequest) {
       currentConversationId = newConversation.id;
     }
 
-    const { error: userMessageError } = await supabase.from("messages").insert({
-      conversation_id: currentConversationId,
-      role: "user",
-      content: message,
-    });
+    const { error: userMessageError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: currentConversationId,
+        role: 'user',
+        content: message,
+      });
 
     if (userMessageError) throw userMessageError;
 
     const { data: previousMessages } = await supabase
-      .from("messages")
-      .select("role, content")
-      .eq("conversation_id", currentConversationId)
-      .order("created_at", { ascending: true })
+      .from('messages')
+      .select('role, content')
+      .eq('conversation_id', currentConversationId)
+      .order('created_at', { ascending: true })
       .limit(10);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-    const context =
-      previousMessages
-        ?.map((msg) => `${msg.role}: ${msg.content}`)
-        .join("\n") || "";
-
-    const prompt = `You are a helpful customer service assistant for ${
-      chatbot.company_name || "this company"
-    }. 
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    
+    const context = previousMessages
+      ?.map((msg) => `${msg.role}: ${msg.content}`)
+      .join('\n') || '';
+    
+    const prompt = `You are a helpful customer service assistant for ${chatbot.company_name || 'this company'}. 
 Previous conversation:
 ${context}
 
@@ -80,11 +82,13 @@ Respond to the customer's message in a friendly and helpful way.`;
     const result = await model.generateContent(prompt);
     const aiResponse = result.response.text();
 
-    const { error: aiMessageError } = await supabase.from("messages").insert({
-      conversation_id: currentConversationId,
-      role: "assistant",
-      content: aiResponse,
-    });
+    const { error: aiMessageError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: currentConversationId,
+        role: 'assistant',
+        content: aiResponse,
+      });
 
     if (aiMessageError) throw aiMessageError;
 
@@ -93,10 +97,11 @@ Respond to the customer's message in a friendly and helpful way.`;
       response: aiResponse,
       conversationId: currentConversationId,
     });
+
   } catch (error) {
-    console.error("Chat API Error:", error);
+    console.error('Chat API Error:', error);
     return NextResponse.json(
-      { error: "Failed to process chat message" },
+      { error: 'Failed to process chat message' },
       { status: 500 }
     );
   }
