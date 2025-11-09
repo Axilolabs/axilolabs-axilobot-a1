@@ -1,8 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signUpWithEmail, createCustomerRecord } from '@/src/lib/auth';
+import { signupRateLimit, getIP } from '@/src/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getIP(request);
+    const { success: rateLimitSuccess, limit, remaining, reset } = await signupRateLimit.limit(ip);
+
+    if (!rateLimitSuccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Too many signup attempts. Please try again later.',
+          limit,
+          remaining,
+          reset: new Date(reset).toISOString(),
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limit.toString(),
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': reset.toString(),
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { email, password, company_name } = body;
 

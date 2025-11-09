@@ -1,8 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
-import { signInWithEmail, getCustomerData } from "@/src/lib/auth";
+import { NextRequest, NextResponse } from 'next/server';
+import { signInWithEmail, getCustomerData } from '@/src/lib/auth';
+import { loginRateLimit, getIP } from '@/src/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getIP(request);
+    const { success: rateLimitSuccess, limit, remaining, reset } = await loginRateLimit.limit(ip);
+
+    if (!rateLimitSuccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Too many login attempts. Please try again later.',
+          limit,
+          remaining,
+          reset: new Date(reset).toISOString(),
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limit.toString(),
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': reset.toString(),
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { email, password } = body;
 
@@ -10,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Email and password are required",
+          error: 'Email and password are required',
         },
         { status: 400 }
       );
@@ -25,7 +49,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: result.error || "Invalid email or password",
+          error: result.error || 'Invalid email or password',
         },
         { status: 401 }
       );
@@ -34,7 +58,7 @@ export async function POST(request: NextRequest) {
     const customerResult = await getCustomerData(result.user.id);
 
     if (!customerResult.data) {
-      console.warn("Customer record not found for user:", result.user.id);
+      console.warn('Customer record not found for user:', result.user.id);
       return NextResponse.json(
         {
           success: true,
@@ -42,7 +66,7 @@ export async function POST(request: NextRequest) {
             id: result.user.id,
             email: result.user.email,
             company_name: result.user.user_metadata?.company_name || null,
-            subscription_tier: "free",
+            subscription_tier: 'free',
           },
           session: result.session,
         },
@@ -65,11 +89,11 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Login API error:", error);
+    console.error('Login API error:', error);
     return NextResponse.json(
       {
         success: false,
-        error: "An unexpected error occurred during login",
+        error: 'An unexpected error occurred during login',
       },
       { status: 500 }
     );
