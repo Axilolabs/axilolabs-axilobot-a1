@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signUpWithEmail, createCustomerRecord } from '@/src/lib/auth';
 import { signupRateLimit, getIP } from '@/src/lib/ratelimit';
+import { supabase } from '@/src/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +38,27 @@ export async function POST(request: NextRequest) {
           error: 'Email, password, and company name are required',
         },
         { status: 400 }
+      );
+    }
+
+    const { data: existingUser } = await supabase
+      .from('customers')
+      .select('email')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (existingUser) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Signup successful! Please check your email to confirm your account.',
+          user: {
+            id: 'pending',
+            email: email,
+          },
+          email_confirmation_required: true,
+        },
+        { status: 201 }
       );
     }
 
